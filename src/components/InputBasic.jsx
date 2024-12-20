@@ -1,10 +1,40 @@
 import { DatePicker, Input, Select } from 'antd';
-import dayjs from 'dayjs';
+import { useEffect, useState } from 'react';
 import Button from '~/components/Button';
-import { inputKey } from '~/routes/inputReducer';
+import { get } from '~/db';
+import { inputKey } from '~/utils/inputReducer';
+import { toastInfo } from '~/utils/toastConfig';
+import { getLanguage, taskCategoryUrl } from '~/utils/urlApi';
 
-function InputBasic({ dispatch, state }) {
-    const { title, type, language, date, status } = state;
+function InputBasic({ dispatch, state, handleFind, isLanguage }) {
+    const { title, type, language } = state;
+    const [taskCategory, setTaskCategory] = useState([]);
+    const [languages, setLanguages] = useState([]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                let res = [];
+                isLanguage && res.push(get(getLanguage));
+                res.push(get(taskCategoryUrl));
+                const [resLanguages, resTaskCategories] = await Promise.all(res);
+                if (resTaskCategories?.status == 200 && resTaskCategories?.statusText == 'OK') {
+                    setTaskCategory(resTaskCategories?.data);
+                }
+
+                if (resLanguages.status === 200 && resLanguages.statusText === 'OK') {
+                    if (resTaskCategories) {
+                        setLanguages(resLanguages.data);
+                    } else {
+                        setTaskCategory(resLanguages.data);
+                    }
+                }
+            } catch (error) {
+                toastInfo('Failed to get information');
+            }
+        })();
+    }, []);
+
     return (
         <>
             <div className="flex justify-between space-x-3">
@@ -17,8 +47,9 @@ function InputBasic({ dispatch, state }) {
                         });
                     }}
                     placeholder="Add chapter name"
-                    className="lg:!w-[60%]"
+                    className="lg:!w-[40%] xl:!w-[50%] 2xl:!w-[60%]"
                 />
+
                 <Select
                     className="!flex-1"
                     onChange={(e) => {
@@ -34,83 +65,51 @@ function InputBasic({ dispatch, state }) {
                             value: '',
                             label: 'Type',
                         },
-                        {
-                            value: 1,
-                            label: 'Translate',
-                        },
-                        {
-                            value: 2,
-                            label: 'Beta',
-                        },
+                        ...taskCategory.map((item) => ({
+                            value: item.task_category_id,
+                            label: item.title,
+                        })),
                     ]}
                 />
-                <Select
-                    className="!flex-1"
-                    defaultValue={language}
-                    onChange={(e) => {
-                        dispatch({ type: inputKey.ADDLANGUAGE, value: e });
-                    }}
-                    value={language}
-                    options={[
-                        {
-                            value: '',
-                            label: 'Language',
-                        },
-                        {
-                            value: 1,
-                            label: 'English',
-                        },
-                        {
-                            value: 2,
-                            label: 'Laos',
-                        },
-                    ]}
-                />
+
+                {isLanguage ? (
+                    <Select
+                        className="!flex-1"
+                        defaultValue={language}
+                        onChange={(e) => {
+                            dispatch({ type: inputKey.ADDLANGUAGE, value: e });
+                        }}
+                        value={language}
+                        options={[
+                            {
+                                value: '',
+                                label: 'Language',
+                            },
+                            ...languages.map((item) => ({
+                                value: item.language_id,
+                                label: item.title,
+                            })),
+                        ]}
+                    />
+                ) : (
+                    <DatePicker
+                        onChange={(e) => {
+                            dispatch({
+                                type: inputKey.ADDDATE,
+                                value: e?.$d || '',
+                            });
+                        }}
+                        format={'MM/DD/YYYY'}
+                    />
+                )}
+
                 <Button
                     onClick={() => {
-                        dispatch({ type: inputKey.CLEAR });
+                        handleFind();
                     }}
                 >
                     Find
                 </Button>
-            </div>
-            <div className="space-x-3">
-                <DatePicker
-                    onChange={(e) => {
-                        dispatch({
-                            type: inputKey.ADDDATE,
-                            value: e?.$d || new Date(),
-                        });
-                    }}
-                    format={'MM/DD/YYYY'}
-                    value={dayjs(date.toLocaleDateString('en-GB'), 'MM/DD/YYYY')}
-                />
-                <Select
-                    className="!w-[150px]"
-                    defaultValue={status}
-                    onChange={(e) => {
-                        dispatch({ type: inputKey.ADDSTATUS, value: e });
-                    }}
-                    value={status}
-                    options={[
-                        {
-                            value: '',
-                            label: 'Status',
-                        },
-                        {
-                            value: 1,
-                            label: 'Finish',
-                        },
-                        {
-                            value: 2,
-                            label: 'On going',
-                        },
-                        {
-                            value: 3,
-                            label: 'Over deadline',
-                        },
-                    ]}
-                />
             </div>
         </>
     );
